@@ -1,6 +1,20 @@
 import torch as t
 from sae_lens import SAE, HookedSAETransformer
 
+
+def get_acts(concept_prompts, 
+            sae_release = "pythia-70m-deduped-res-sm", 
+            acts_id = "blocks.4.hook_resid_post", 
+            device = "cuda" if t.cuda.is_available() else "cpu", 
+                    save = None):
+    # load SAE of specific layer, and model 
+    model: HookedSAETransformer = HookedSAETransformer.from_pretrained('EleutherAI/pythia-70m-deduped', device=device)
+
+    ## gather sparse rep of harmful prompts 
+    output, cache = model.run_with_cache(concept_prompts)
+    acts = cache[acts_id]
+    return acts 
+
 def get_sparse_acts(concept_prompts, 
                     sae_release = "pythia-70m-deduped-res-sm", 
                     sae_id = "blocks.4.hook_resid_post", 
