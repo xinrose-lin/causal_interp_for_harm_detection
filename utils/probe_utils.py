@@ -14,7 +14,7 @@ class Probe(nn.Module):
         return logits
 
 def load_probe(filepath):
-    """ initialis e"""
+    """ initialis """
     model = Probe(512)
     # Load the state dictionary into the model
     model.load_state_dict(t.load(filepath))
@@ -28,6 +28,18 @@ def save_probe(probe, filepath):
     t.save(probe.state_dict(), filepath)
     print('saved to ', filepath)
 
+## dataset: 
+### get train acts
+# nonharmful_acts = read_from_pt_gz("sparse_acts/train/nonharmful_acts_512.pt.gz")
+# harmful_acts = read_from_pt_gz("sparse_acts/train/harmful_acts_512.pt.gz")
+
+# def dataset(): 
+#     data_last_tok_acts = t.cat((nonharmful_acts[:, -1, :], harmful_acts[:, -1, :]), dim=0).tolist()
+#     labels = train_nonharmful[1] + train_harmful[1]
+#     return data, labels
+# train_batches = data_loader(last_tok_acts_data, label)
+
+
 ## returns batches of activations
 def data_loader(data, labels, batch_size=16, seed = 42, device="cpu"):
     """ 
@@ -40,9 +52,11 @@ def data_loader(data, labels, batch_size=16, seed = 42, device="cpu"):
     data, labels = [data[i] for i in idxs], [labels[i] for i in idxs]
     # return the batches
     batches = [
-        (data[i:i+batch_size], t.tensor(labels[i:i+batch_size], device=device)) for i in range(0, len(data), batch_size)
+        (t.tensor(data[i:i+batch_size]), t.tensor(labels[i:i+batch_size], device=device)) for i in range(0, len(data), batch_size)
     ]
     return batches
+
+
 
 
 # def train_probe_(batches, lr=1e-2, epochs=1, dim=512, seed=42, probe="linear"):
@@ -98,10 +112,91 @@ def test_probe(probe, batches, seed=42):
         for batch in batches:
             acts = batch[0]
             labels = batch[1]
-            # acts = get_acts(text)
+
             logits = probe(acts)
             preds = (logits > 0.0).long()
-            # print(logits)
-            # print(preds)
+
             corrects.append((preds == labels).float())
         return t.cat(corrects).mean().item()
+
+
+
+def dataset(nonharmful_fp, harmful_fp): 
+    ### get train acts
+    nonharmful_acts = read_from_pt_gz("data_latents/train/acts/nonharmful_acts_512.pt.gz")
+    harmful_acts = read_from_pt_gz("data_latents/train/acts/harmful_acts_512.pt.gz")
+
+    last_tok_acts_data = t.cat((nonharmful_acts[:, -1, :], harmful_acts[:, -1, :]), dim=0).tolist()
+    label = t.cat( (t.zeros(len(nonharmful_acts)) , t.ones(len(harmful_acts))) )
+
+    train_batches = data_loader(last_tok_acts_data, label)
+    len(train_batches)
+
+    ## get test acts
+    nonharmful_acts = read_from_pt_gz("data_latents/test/acts/nonharmful_acts_512.pt.gz")
+    harmful_acts = read_from_pt_gz("data_latents/test/acts/harmful_acts_512.pt.gz")
+
+    last_tok_acts_data = t.cat((nonharmful_acts[:, -1, :], harmful_acts[:, -1, :]), dim=0).tolist()
+    label = t.cat( (t.zeros(len(nonharmful_acts)) , t.ones(len(harmful_acts))) )
+    test_batches = data_loader(last_tok_acts_data, label)
+    len(test_batches)
+
+
+def train(): 
+    t.manual_seed(42)
+    probe = Probe(512)
+
+    epoch_train_loss = []
+    total_loss = []
+    epoch_test_acc = []
+    epoches = 65
+
+    # train_batches = batches[:-2]
+
+    for i in range(epoches): 
+        probe, losses = train_probe(probe, train_batches)
+        total_loss.extend(losses)
+        epoch_train_loss.append(losses[-1])
+
+        test_acc = test_probe(probe, batches=test_batches, seed=42)
+        epoch_test_acc.append(test_acc)
+
+def plot():
+    plt.plot(epoch_train_loss, label="Train loss")
+    plt.plot(epoch_test_acc, label="Test Accuracy")
+    plt.legend()
+    plt.title(f"Acts probe (dim=512) training plot (Final test accuracy = {epoch_test_acc[-1]:.4f}) ")
+
+def test_scores()
+    ## accuracy
+    test_probe(probe, batches=test_batches, seed=42)
+
+    ## recall (harmful)
+    harmful_acts = read_from_pt_gz("data_latents/test/acts/harmful_acts_512.pt.gz")
+    last_tok_acts_data = harmful_acts[:, -1, :].tolist()
+    label = t.ones(len(harmful_acts))
+    test_batches_harmful = data_loader(last_tok_acts_data, label)
+
+    recall = test_probe(probe, test_batches_harmful)
+
+    ## recall (perturbed)
+# recall (perturbed)
+    harmful_acts = read_from_pt_gz("data_latents/test_perturbed/acts/harmful_acts_512.pt.gz")
+    last_tok_acts_data = harmful_acts[:, -1, :].tolist()
+    label = t.ones(len(harmful_acts))
+    test_batches_harmful_perturbed = data_loader(last_tok_acts_data, label)
+
+    test_probe(probe, test_batches_harmful_perturbed)
+    ## recall score (nonharmful)
+    ## better at nonharmful than harmful?
+
+    nonharmful_acts = read_from_pt_gz("data_latents/test/acts/nonharmful_acts_512.pt.gz")
+    last_tok_acts_data = nonharmful_acts[:, -1, :].tolist()
+
+    label = t.zeros(len(nonharmful_acts))
+    test_batches_nonharmful = data_loader(last_tok_acts_data, label)
+
+    test_probe(probe, test_batches_nonharmful)
+
+    t.save(probe.state_dict(), filepath)
+    print('saved to ', filepath)

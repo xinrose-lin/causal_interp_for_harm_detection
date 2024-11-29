@@ -31,6 +31,8 @@ def read_from_pt_gz(filepath):
         return t.load(f)
 
 
+
+
 def load_concept_ds():
     dataset = load_dataset("justinphan3110/harmful_harmless_instructions")
     return dataset
@@ -100,57 +102,57 @@ def load_target_concept_data(train=True, target_label=1):
     
 ### load testing dataset: advbench
 # code for processing perturbed data 
+def process_harm(): 
+    filepath = "data/autodan_hga/autodan_hga_pythia.json"
+    with open(filepath, "r") as file:
+        autodan_pythia = json.load(file)
 
-filepath = "data/autodan_hga/autodan_hga_pythia.json"
-with open(filepath, "r") as file:
-    autodan_pythia = json.load(file)
+    filepath = "data/harmful_test_ds.json"
+    with open(filepath, "r") as file:
+        harmful_test_data = json.load(file)
 
-filepath = "data/harmful_test_ds.json"
-with open(filepath, "r") as file:
-    harmful_test_data = json.load(file)
+    filepath = "data/harmful_train_ds.json"
+    with open(filepath, "r") as file:
+        harmful_train_data = json.load(file)
 
-filepath = "data/harmful_train_ds.json"
-with open(filepath, "r") as file:
-    harmful_train_data = json.load(file)
+    harmful_test_set = set(harmful_test_data[0])
+    harmful_test = []
+    harmful_test_perturbed = []
 
-harmful_test_set = set(harmful_test_data[0])
-harmful_test = []
-harmful_test_perturbed = []
+    harmful_train_set = set(harmful_train_data[0])
+    harmful_train = []
+    harmful_train_perturbed = []
 
-harmful_train_set = set(harmful_train_data[0])
-harmful_train = []
-harmful_train_perturbed = []
+    add_harmful = []
+    add_harmful_perturbed = []
 
-add_harmful = []
-add_harmful_perturbed = []
+    for output in autodan_pythia.values(): 
+        if output['goal'] in harmful_test_set: 
+            harmful_test.append(output['goal'])
+            harmful_test_perturbed.append(output['final_suffix'].replace("[REPLACE]", output['goal']))
+        elif output['goal'] in harmful_train_set: 
+            harmful_train.append(output['goal'])
+            harmful_train_perturbed.append(output['final_suffix'].replace("[REPLACE]", output['goal']))
+        else: 
+            add_harmful.append(output['goal'])
+            add_harmful_perturbed.append(output['final_suffix'].replace("[REPLACE]", output['goal']))
+        
+    evals = {} ## recall score 
 
-for output in autodan_pythia.values(): 
-    if output['goal'] in harmful_test_set: 
-        harmful_test.append(output['goal'])
-        harmful_test_perturbed.append(output['final_suffix'].replace("[REPLACE]", output['goal']))
-    elif output['goal'] in harmful_train_set: 
-        harmful_train.append(output['goal'])
-        harmful_train_perturbed.append(output['final_suffix'].replace("[REPLACE]", output['goal']))
-    else: 
-        add_harmful.append(output['goal'])
-        add_harmful_perturbed.append(output['final_suffix'].replace("[REPLACE]", output['goal']))
-    
-evals = {} ## recall score 
+    ## concept probe: 
+    evals['harmful_train_64'] = harmful_train
+    evals['harmful_train_perturbed'] = harmful_train_perturbed
 
-## concept probe: 
-evals['harmful_train_64'] = harmful_train
-evals['harmful_train_perturbed'] = harmful_train_perturbed
+    ## concept probe: harmful vs harmless on testset
+    evals['harmful_test_192'] = harmful_test
+    ## concept probe: harmful vs harmless on perturbed data (by jailbreak prompt)
+    evals['harmful_test_perturbed'] = harmful_test_perturbed
 
-## concept probe: harmful vs harmless on testset
-evals['harmful_test_192'] = harmful_test
-## concept probe: harmful vs harmless on perturbed data (by jailbreak prompt)
-evals['harmful_test_perturbed'] = harmful_test_perturbed
+    ## additional: recall scoring
+    ## concept probe: extending harmful classification to more data from advbench
+    evals['harmful_additional_264'] = add_harmful
+    evals['harmful_additional_perturbed'] = add_harmful_perturbed
 
-## additional: recall scoring
-## concept probe: extending harmful classification to more data from advbench
-evals['harmful_additional_264'] = add_harmful
-evals['harmful_additional_perturbed'] = add_harmful_perturbed
-
-filepath = "data/harm_perturbed_testset/harm_perturbed_testset.json"
-with open(filepath, "w") as file:
-    json.dump(evals, file, indent=4) 
+    filepath = "data/harm_perturbed_testset/harm_perturbed_testset.json"
+    with open(filepath, "w") as file:
+        json.dump(evals, file, indent=4) 
