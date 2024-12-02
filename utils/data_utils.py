@@ -2,6 +2,7 @@
 ### load dataset
 import torch as t
 from datasets import load_dataset
+
 import random
 import json
 import numpy as np
@@ -30,45 +31,10 @@ def read_from_pt_gz(filepath):
     with gzip.open(f'{filepath}', "rb") as f:
         return t.load(f)
 
-
-
-
+### load evaluation dataset used
 def load_concept_ds():
     dataset = load_dataset("justinphan3110/harmful_harmless_instructions")
     return dataset
-
-
-# #### for training concept probe
-# def data_loader(train=True, batch_size=16, seed=42, DEVICE="cpu"):
-#     """
-#         load data in batches randomly for training concept probe
-#     """
-#     dataset = load_concept_ds()
-
-#     if train:
-#         data_split = dataset['train']
-#     else:
-#         data_split = dataset['test']
-    
-#     ### Data processing: 
-#     ## flatten dataset [list of sentences] + [list of labels]
-#     data = [item for sublist in data_split['sentence'] for item in sublist]
-#     labels = [item for sublist in data_split['label'] for item in sublist]
-    
-#     # Convert True (harmless) -> 0 and False (harmful) -> 1
-#     labels = t.where(t.tensor(labels) == True, t.tensor(0), t.tensor(1))
-    
-#     ### Data Batches
-#     # random batch sample
-#     idxs = list(range(data_split.num_rows))
-#     random.Random(seed).shuffle(idxs)
-#     data, labels = [data[i] for i in idxs], [labels[i] for i in idxs]
-   
-#     batches = [
-#         (data[i:i+batch_size], t.tensor(labels[i:i+batch_size], device=DEVICE)) for i in range(0, len(data), batch_size)
-#     ]
-
-#     return batches
 
 ### function used to process data into harmful (1) and nonharmful (0)
 def load_target_concept_data(train=True, target_label=1): 
@@ -99,10 +65,12 @@ def load_target_concept_data(train=True, target_label=1):
     return target_data_ds
 
 
-    
 ### load testing dataset: advbench
 # code for processing perturbed data 
-def process_harm(): 
+# compile them into one json file
+def compile_evals_data():
+
+    # data perturbed with autodan
     filepath = "data/autodan_hga/autodan_hga_pythia.json"
     with open(filepath, "r") as file:
         autodan_pythia = json.load(file)
@@ -126,6 +94,7 @@ def process_harm():
     add_harmful = []
     add_harmful_perturbed = []
 
+    # processing: get perturbed prompt
     for output in autodan_pythia.values(): 
         if output['goal'] in harmful_test_set: 
             harmful_test.append(output['goal'])
@@ -136,8 +105,9 @@ def process_harm():
         else: 
             add_harmful.append(output['goal'])
             add_harmful_perturbed.append(output['final_suffix'].replace("[REPLACE]", output['goal']))
-        
-    evals = {} ## recall score 
+
+    ## compile data into single json file 
+    evals = {} 
 
     ## concept probe: 
     evals['harmful_train_64'] = harmful_train

@@ -1,27 +1,32 @@
 import matplotlib.pyplot as plt
 import torch as t
+import numpy as np
+from scipy.stats import kurtosis
 
 
 def training_plot(epoch_train_loss, epoch_test_acc):
+
+    max_value = t.tensor(epoch_test_acc).topk(1).values.numpy().item()
+    max_epoch = t.tensor(epoch_test_acc).topk(1).indices.numpy().item()
+
     plt.plot(epoch_train_loss, label="Train loss")
     plt.plot(epoch_test_acc, label="Test Accuracy")
 
-    # # Annotate the final values
-    # plt.text(len(epoch_train_loss) - 1, epoch_train_loss[-1], f"{epoch_train_loss[-1]:.2f}", 
-    #         ha='left', va='center', fontsize=10, color="blue")
-    # plt.text(len(epoch_test_acc) - 1, epoch_test_acc[-1], f"{epoch_test_acc[-1]:.2f}", 
-    #         ha='left', va='center', fontsize=10, color="orange")
+    plt.text(max_epoch + 1, epoch_test_acc[-1] - 0.1, f"Max Test Accuracy: {max_value:.4f}, Epoch Index: {max_epoch}", 
+            ha='left', va='center', fontsize=10, color="orange")
+
+    # Add a vertical line at the max test accuracy epoch
+    plt.axvline(x=max_epoch, color='orange', linestyle='--', label="Max Accuracy Epoch")
 
     plt.legend()
-    plt.title("(dim=512) acts probe train loss and test acc")
+    plt.title("(Correlation) Localised Sparse Probe Training plot (dim=100)")
 
     # Add axis labels
     plt.xlabel("Epochs")
     plt.ylabel("Values")
 
-    # print(epoch_test_acc)
 
-## EDA: do we observe different 
+## code for side by side boxplot
 def boxplot(nonharmful_acts, harmful_acts): 
     ## mean for final token
 
@@ -64,12 +69,9 @@ def boxplot(nonharmful_acts, harmful_acts):
     plt.show()
 
 
-# import matplotlib.pyplot as plt
-# import numpy as np
-
-def violin_plot():
+def violin_plot(nonharmful,  harmful):
     
-    data = [nonzero_nonharmful, nonzero_harmful]
+    data = [nonharmful, harmful]
     # Create the figure and axes
     fig, ax = plt.subplots(figsize=(9, 7))
 
@@ -90,8 +92,8 @@ def violin_plot():
         # plt.text(pos - 0.1, maximum - 0.05, f"Non zero counts: {nonzero_counts}", ha='right', va='center', fontsize=10, color='black')
 
     # Annotate both boxplots
-    annotate_plot(t.tensor(nonzero_nonharmful), 1)
-    annotate_plot(t.tensor(nonzero_harmful), 2)
+    annotate_plot(t.tensor(nonharmful), 1)
+    annotate_plot(t.tensor(harmful), 2)
 
     # Customize appearance
     for pc in parts['bodies']:
@@ -105,3 +107,60 @@ def violin_plot():
     ax.set_xticks([1, 2])  # Set x-tick positions
     ax.set_xticklabels([f"Non harmful prompts ", "Harmful prompts"])  # Set
 
+
+## plot for up down comparison of distribution
+def distribution_lineplot(harmful_acts, nonharmful_acts): 
+
+    harmful_data = harmful_acts
+    nonharmful_data = nonharmful_acts
+
+    harmful_stats = {
+        "max": harmful_data.max(),
+        "mean": harmful_data.mean(),
+        "median": harmful_data.median(),
+        "min": harmful_data.min(), 
+        "kurtosis": kurtosis(harmful_data)
+    }
+    nonharmful_stats = {
+        "max": nonharmful_data.max(),
+        "mean": nonharmful_data.mean(),
+        "median": nonharmful_data.median(),
+        "min": nonharmful_data.min(), 
+        "kurtosis": kurtosis(nonharmful_data)
+    }
+
+    # Create two subplots stacked vertically
+    fig, axes = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+
+    # Plot non-harmful data
+    axes[0].plot(nonharmful_data, label="Non-harmful data", color='blue')
+    axes[0].set_title("Averaged Non-Harmful Original Activations (n=64)")
+    # axes[0].legend()
+    axes[0].set_ylabel("Activation Value")
+
+    # Annotate statistics
+    axes[0].text(1.25, 0.9, f"Max: {nonharmful_stats['max']:.2f}", transform=axes[0].transAxes, fontsize=10, ha='right')
+    axes[0].text(1.25, 0.8, f"Mean: {nonharmful_stats['mean']:.2f}", transform=axes[0].transAxes, fontsize=10, ha='right')
+    axes[0].text(1.25, 0.7, f"Median: {nonharmful_stats['median']:.2f}", transform=axes[0].transAxes, fontsize=10, ha='right')
+    axes[0].text(1.25, 0.6, f"Min: {nonharmful_stats['min']:.2f}", transform=axes[0].transAxes, fontsize=10, ha='right')
+    axes[0].text(1.25, 0.5, f"Kurtosis: {nonharmful_stats['kurtosis']:.2f}", transform=axes[0].transAxes, fontsize=10, ha='right')
+
+    # Plot harmful data
+    axes[1].plot(harmful_data, label="Harmful data", color='red')
+    axes[1].set_title("Averaged Harmful Original Activations (n=64)")
+
+    axes[1].set_xlabel("Hidden dimensions Index")
+    axes[1].set_ylabel("Activation Value")
+    # Annotate statistics
+    axes[1].text(1.25, 0.9, f"Max: {harmful_stats['max']:.2f}", transform=axes[1].transAxes, fontsize=10, ha='right')
+    axes[1].text(1.25, 0.8, f"Mean: {harmful_stats['mean']:.2f}", transform=axes[1].transAxes, fontsize=10, ha='right')
+    axes[1].text(1.25, 0.7, f"Median: {harmful_stats['median']:.2f}", transform=axes[1].transAxes, fontsize=10, ha='right')
+    axes[1].text(1.25, 0.6, f"Min: {harmful_stats['min']:.2f}", transform=axes[1].transAxes, fontsize=10, ha='right')
+    axes[1].text(1.25, 0.5, f"Kurtosis: {harmful_stats['kurtosis']:.2f}", transform=axes[1].transAxes, fontsize=10, ha='right')
+
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Show the plot
+    plt.show()
